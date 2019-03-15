@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "C:\\Users\\duply\\Documents\\Arduino\\libraries\\**",
+                "C:\\Users\\duply\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\**",
+                "C:\\Users\\duply\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.6.23\\**"
+            ],
+            "forcedInclude": [
+                "C:\\Users\\duply\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.6.23\\cores\\arduino\\Arduino.h"
+            ],
+            "intelliSenseMode": "msvc-x64",
+            "compilerPath": "C:\\MinGW\\bin\\gcc.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "browse.path": "C:\\Users\\duply\\Documents\\Arduino\\libraries\\**"
+            
+
+        }
+    ],
+    "version": 4
+}
