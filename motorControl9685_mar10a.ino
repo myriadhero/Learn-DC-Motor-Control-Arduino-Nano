@@ -82,12 +82,13 @@ Adafruit_SSD1306 display(-1); // this is fixed, but just in case of reinstall or
 #define PTIMER 3
 
 // Test defines
-#define TESTOMTARGET 490*5/10 // 490 (ticks/s) -> 1 rev/0.1s
+#define TESTOMTARGET 70 // 490 (ticks/s) -> 1 rev/0.1s
 
 
 volatile uint32_t timer_INT = 0; // timer as per interrupt
 volatile uint32_t timer_current = 0;
 volatile uint32_t timer_prev = 0;
+volatile uint32_t timer_motorInterval_prev = 0;
 
 
 // motor encoders & speed control
@@ -102,8 +103,8 @@ volatile uint16_t omegaTargetR = TESTOMTARGET;
 volatile uint16_t omegaTargetL = 0;
 
 // PID parameters for motor control****************************
-float Kp=30, Ki=0, Kd=0, Hz=10;
-float Ki_prev=0, Kd_prev=0; // Kp_prev=15,
+float Kp=50, Ki=0, Kd=0, Hz=10;
+float Ki_prev=0, Kd_prev=0, Kp_prev=50;
 int output_bits = 13; // output range is [0, 2^(bits-1)-1]; 4095 = 2^(13-1) -1
 bool output_signed = false;
 
@@ -207,29 +208,84 @@ void loop() {
 
   timer_current = timer_INT;
 
-  if ((timer_current >= 2000)){ //  && (timer_current < 12000) testing time constraint toDo: remove
-    motorOn = true;
+  if ((timer_current < 2000)){ // do nothing for first 2 sec
+    motorOn = false;
   } else
   {
-    motorOn = false;
+    motorOn = true;
   }
   
+  if(timer_current - timer_motorInterval_prev >= 30000){ // run every 30 sec
+
+    // i want to change omegaTargetR here every 30 sec
+    if(omegaTargetR == 70) omegaTargetR = 147;
+    else if(omegaTargetR == 147) omegaTargetR = 245;
+    else if (omegaTargetR == 245) omegaTargetR = 0;
+    else if (omegaTargetR == 0) omegaTargetR = 70;
+
+    if (omegaTargetR == 0) {
+      timer_INT = 0;
+      timer_current = 0;
+    } 
+    
+
+
+
+
+    timer_motorInterval_prev = timer_current;
+  }
+
+
+
 
   if((timer_current - timer_prev) >= TSAMP_ENC){ // non-blocking code, only executes if 100+ ms passed
     encR_current = encR;
     encL_current = encL;
 
-    omegaTargetR = map(analogRead(A0), 0, 1023, 0, TESTOMTARGET);
-    Ki = map(analogRead(A1), 0, 1023, 0, 5);
-    Kd = map(analogRead(A2), 0, 1023, 0, 5);
-    Ki = Ki / 10.0;
-    Kd = Kd / 10.0;
+    uint8_t Kp_dir = map(analogRead(A0), 0, 1023, 0, 2);
+    if(Kp_dir < 1) {
+      if(Kp > 60) Kp = Kp - 10;
+      else if(Kp < 5) Kp = Kp - 0.1;
+      else Kp = Kp - 1;
+    }
+    else if (Kp_dir > 1)
+    {
+      if(Kp > 50) Kp = Kp + 10;
+      else if(Kp < 5) Kp = Kp + 0.1;
+      else Kp = Kp + 1;
+    }
+    
+    uint8_t Ki_dir = map(analogRead(A1), 0, 1023, 0, 2);
+    if(Ki_dir < 1) {
+      if(Ki > 60) Ki = Ki - 10;
+      else if(Ki < 5) Ki = Ki - 0.1;
+      else Ki = Ki - 1;
+    }
+    else if (Ki_dir > 1)
+    {
+      if(Ki > 60) Ki = Ki + 10;
+      else if(Ki < 5) Ki = Ki + 0.1;
+      else Ki = Ki + 1;
+    }
+
+    uint8_t Kd_dir = map(analogRead(A2), 0, 1023, 0, 2);
+    if(Kd_dir < 1) {
+      if(Kd > 60) Kd = Kd - 10;
+      else if(Kd < 5) Kd = Kd - 0.1;
+      else Kd = Kd - 1;
+    }
+    else if (Kd_dir > 1)
+    {
+      if(Kd > 60) Kd = Kd + 10;
+      else if(Kd < 5) Kd = Kd + 0.1;
+      else Kd = Kd + 1;
+    }
 
 
-    if((Ki != Ki_prev) || (Kd != Kd_prev)){ // reset PID
+    if((Kp != Kp_prev) || (Ki != Ki_prev) || (Kd != Kd_prev)){ // reset PID
       R_PID.clear();
       R_PID.setCoefficients(Kp, Ki, Kd, Hz); 
-      Ki_prev = Ki; Kd_prev = Kd;
+      Kp_prev = Kp; Ki_prev = Ki; Kd_prev = Kd; 
     }
 
     int16_t speedR = (encR_current - encR_prev); // divided by 0.1 s, or times 10, 
