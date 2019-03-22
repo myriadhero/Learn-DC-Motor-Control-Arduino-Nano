@@ -103,8 +103,8 @@ volatile uint16_t omegaTargetR = TESTOMTARGET;
 volatile uint16_t omegaTargetL = 0;
 
 // PID parameters for motor control****************************
-float Kp=50, Ki=0, Kd=0, Hz=10;
-float Ki_prev=0, Kd_prev=0, Kp_prev=50;
+float Kp=35, Ki=10, Kd=0, Hz=10;   // For these motors and motor driver Kp 30-40 seems to work ok
+float Kp_prev=35, Ki_prev=10, Kd_prev=0; // i can't work out other parameters without causing oscillation
 int output_bits = 13; // output range is [0, 2^(bits-1)-1]; 4095 = 2^(13-1) -1
 bool output_signed = false;
 
@@ -128,6 +128,54 @@ int16_t pid_R1_out = 0;
 
 void disablePpin(uint8_t pin){ // function to disable a pin on the PCA9685 board
   pwm.setPWM(pin, 0, PMAXPULSE);
+}
+
+void samplePotsAdjustPID(){
+  uint8_t Kp_dir = map(analogRead(A0), 0, 1023, 0, 2);
+    if(Kp_dir < 1) {
+      if(Kp > 60) Kp = Kp - 10;
+      else if(Kp < 5) Kp = Kp - 0.1;
+      else Kp = Kp - 1;
+    }
+    else if (Kp_dir > 1)
+    {
+      if(Kp > 50) Kp = Kp + 10;
+      else if(Kp < 5) Kp = Kp + 0.1;
+      else Kp = Kp + 1;
+    }
+    
+    uint8_t Ki_dir = map(analogRead(A1), 0, 1023, 0, 2);
+    if(Ki_dir < 1) {
+      if(Ki > 60) Ki = Ki - 10;
+      else if(Ki < 5) Ki = Ki - 0.1;
+      else Ki = Ki - 1;
+    }
+    else if (Ki_dir > 1)
+    {
+      if(Ki > 60) Ki = Ki + 10;
+      else if(Ki < 5) Ki = Ki + 0.1;
+      else Ki = Ki + 1;
+    }
+
+    uint8_t Kd_dir = map(analogRead(A2), 0, 1023, 0, 2);
+    if(Kd_dir < 1) {
+      if(Kd > 60) Kd = Kd - 10;
+      else if(Kd < 5) Kd = Kd - 0.1;
+      else Kd = Kd - 1;
+    }
+    else if (Kd_dir > 1)
+    {
+      if(Kd > 60) Kd = Kd + 10;
+      else if(Kd < 5) Kd = Kd + 0.1;
+      else Kd = Kd + 1;
+    }
+
+
+    if((Kp != Kp_prev) || (Ki != Ki_prev) || (Kd != Kd_prev)){ // reset PID
+      R_PID.clear();
+      R_PID.setCoefficients(Kp, Ki, Kd, Hz); 
+      Kp_prev = Kp; Ki_prev = Ki; Kd_prev = Kd; 
+    }
 }
 
 
@@ -242,51 +290,8 @@ void loop() {
     encR_current = encR;
     encL_current = encL;
 
-    uint8_t Kp_dir = map(analogRead(A0), 0, 1023, 0, 2);
-    if(Kp_dir < 1) {
-      if(Kp > 60) Kp = Kp - 10;
-      else if(Kp < 5) Kp = Kp - 0.1;
-      else Kp = Kp - 1;
-    }
-    else if (Kp_dir > 1)
-    {
-      if(Kp > 50) Kp = Kp + 10;
-      else if(Kp < 5) Kp = Kp + 0.1;
-      else Kp = Kp + 1;
-    }
-    
-    uint8_t Ki_dir = map(analogRead(A1), 0, 1023, 0, 2);
-    if(Ki_dir < 1) {
-      if(Ki > 60) Ki = Ki - 10;
-      else if(Ki < 5) Ki = Ki - 0.1;
-      else Ki = Ki - 1;
-    }
-    else if (Ki_dir > 1)
-    {
-      if(Ki > 60) Ki = Ki + 10;
-      else if(Ki < 5) Ki = Ki + 0.1;
-      else Ki = Ki + 1;
-    }
+    //samplePotsAdjustPID();
 
-    uint8_t Kd_dir = map(analogRead(A2), 0, 1023, 0, 2);
-    if(Kd_dir < 1) {
-      if(Kd > 60) Kd = Kd - 10;
-      else if(Kd < 5) Kd = Kd - 0.1;
-      else Kd = Kd - 1;
-    }
-    else if (Kd_dir > 1)
-    {
-      if(Kd > 60) Kd = Kd + 10;
-      else if(Kd < 5) Kd = Kd + 0.1;
-      else Kd = Kd + 1;
-    }
-
-
-    if((Kp != Kp_prev) || (Ki != Ki_prev) || (Kd != Kd_prev)){ // reset PID
-      R_PID.clear();
-      R_PID.setCoefficients(Kp, Ki, Kd, Hz); 
-      Kp_prev = Kp; Ki_prev = Ki; Kd_prev = Kd; 
-    }
 
     int16_t speedR = (encR_current - encR_prev); // divided by 0.1 s, or times 10, 
                               // since this is supposed to run every 0.1s
@@ -316,11 +321,15 @@ void loop() {
     encL_prev = encL_current;
     timer_prev = timer_current;
     
+
+    // _________________________________________________________
+    // print to OLED
+    
     // display.clearDisplay();
     // display.display();
 
     display.setCursor(0,10);
-    display.print(timer_prev);
+    display.print(timer_prev);display.print("   ");
     display.setCursor(0,20);
     display.print(omegaTargetR);
     display.setCursor(0,30); // speed R, clicks/s, pwm
@@ -333,7 +342,7 @@ void loop() {
 
     // display.print(speedL); // speed L, clicks/s
     display.display();
-
+    // _________________________________________________________
     
   }
   
